@@ -667,9 +667,16 @@ export default class MermaidPopupPlugin extends Plugin {
         _doc.body.appendChild(overlay);
         this.adjustInPopup(containerElementInPopup);
 
+        const removeOverlay = () => {
+            if (containerElementInPopup.doc.body.contains(overlay)) {
+                containerElementInPopup.doc.body.removeChild(overlay);
+                containerElementInPopup.doc.removeEventListener('keydown', keydownHandler);
+            }
+        };
+
         // Close popup on overlay click
-        overlay.addEventListener('click', (evt) => {
-            evt.doc.body.removeChild(overlay);
+        overlay.addEventListener('click', () => {
+            removeOverlay();
         });
 
         // Stop propagation to prevent closing when clicking on popup content
@@ -677,13 +684,19 @@ export default class MermaidPopupPlugin extends Plugin {
             evt.stopPropagation();
         });
 
-        // Listen for the Escape key to close the popup
-        containerElementInPopup.doc.addEventListener('keydown', (evt) => {
+        // Listen for keyboard shortcuts
+        const keydownHandler = (evt: KeyboardEvent) => {
             if (evt.key === 'Escape') {
-                if(containerElementInPopup.doc.body.contains(overlay))
-                    containerElementInPopup.doc.body.removeChild(overlay);
+                removeOverlay();
+            } else if (evt.key === '=' || evt.key === '+') {
+                evt.preventDefault();
+                this.zoomPopup(containerElementInPopup, false);
+            } else if (evt.key === '-' || evt.key === '_') {
+                evt.preventDefault();
+                this.zoomPopup(containerElementInPopup, true);
             }
-        });    
+        };
+        containerElementInPopup.doc.addEventListener('keydown', keydownHandler);    
         
         this.setPopupSize(containerElementInPopup, containerElement);
 
@@ -693,11 +706,17 @@ export default class MermaidPopupPlugin extends Plugin {
         // Make the popup resizable
         containerElementInPopup.classList.add('resizable');
 
-        // Add mouse wheel event for zooming
+        // Add mouse wheel event for zooming with stepwise accumulation
+        let wheelDeltaAccum = 0;
+        const wheelThreshold = 50;
         containerElementInPopup.addEventListener('wheel', (evt) => {
             evt.preventDefault();
-            const isOut = evt.deltaY > 0;
-            this.zoomPopupAtCursor(containerElementInPopup, isOut, evt);
+            wheelDeltaAccum += evt.deltaY;
+            if (Math.abs(wheelDeltaAccum) >= wheelThreshold) {
+                const isOut = wheelDeltaAccum > 0;
+                this.zoomPopupAtCursor(containerElementInPopup, isOut, evt);
+                wheelDeltaAccum = 0;
+            }
         });
     }
 
